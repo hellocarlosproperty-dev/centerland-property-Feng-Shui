@@ -1,0 +1,6 @@
+{
+  "name": "中聯家居風水命理專門店",
+  "description": "中聯地產物業有限公司旗下品牌，提供專業家居風水佈局、八字命理、流年大運、擇日諮詢與預約平台。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
