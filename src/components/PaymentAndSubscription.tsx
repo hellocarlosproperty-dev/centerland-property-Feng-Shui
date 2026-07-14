@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "motion/react";
 import { Check, ChevronRight, Gem, ExternalLink, Info, Sparkles, Image as ImageIcon, LayoutGrid, Copy, QrCode, Coins, MessageSquare, CheckCircle2 } from "lucide-react";
 import { BaziDetailedIntro, FengShuiDetailedIntro } from "./ProductIntros";
 import { TraditionalPoster } from "./TraditionalPoster";
@@ -168,7 +169,34 @@ interface PaymentAndSubscriptionProps {
   triggerBlessing: (msg: string) => void;
   paymentError?: { message: string; planName: string; planId: string } | null;
   setPaymentError?: (err: { message: string; planName: string; planId: string } | null) => void;
+  form?: any;
 }
+
+// 🟢 Dynamically generate personalized WhatsApp booking messages based on form parameters
+const getWhatsAppUrlForCard = (type: "bazi" | "fengshui", form?: any) => {
+  const name = form?.name ? `${form.name} 閣下` : "有緣人";
+  const gender = form?.gender ? `（性別：${form.gender}）` : "";
+  const phone = form?.phone ? `（聯絡電話：${form.phone}）` : "";
+  const identity = form?.identity ? `（身份：${form.identity}）` : "";
+  
+  let text = "";
+  if (type === "bazi") {
+    const birthDateStr = form?.birthDate ? `\n- 出生日期：${form.birthDate}` : "";
+    const birthTimeStr = (form?.birthTime || form?.birthHour) ? `\n- 出生時辰：${form.birthTime || (form.birthHour + ":" + form.birthMinute)}` : "";
+    text = `【中聯家居風水命理 · 預約林師傅八字深度精批】
+您好，林師傅！我是${name}${gender}，我想跟您預約一對一『🔮 個人生辰八字命盤深度精批』限時特惠套裝（特惠價 HK$1,440）。
+希望能為我深度剖析未來 60 年之大運吉凶起伏、元神喜用五行佈局。${birthDateStr}${birthTimeStr}
+謝謝林師傅，期待與您聯繫預約排期分析，幫我趨吉避凶！`;
+  } else {
+    const addressStr = form?.address ? `\n- 住宅地址：${form.address}` : "";
+    text = `【中聯家居風水命理 · 預約林師傅實地勘察】
+您好，林師傅！我是${name}${identity}，我想跟您預約親自上門的『🏠 住宅家居風水現場佈局實測』限時特惠服務（特惠價 HK$2,760）。
+希望能安排林師傅親自帶羅盤登門勘測氣場格局，為我布設九宮飛星旺財催丁大局、迎福消災！${addressStr}${phone}
+謝謝林師傅，期待與您連線諮詢！`;
+  }
+  
+  return `https://wa.me/85291884964?text=${encodeURIComponent(text)}`;
+};
 
 export function PaymentAndSubscription({
   subscription,
@@ -179,7 +207,8 @@ export function PaymentAndSubscription({
   handleSimulateSubscription,
   triggerBlessing,
   paymentError,
-  setPaymentError
+  setPaymentError,
+  form
 }: PaymentAndSubscriptionProps) {
   const [showPosters, setShowPosters] = useState(true);
 
@@ -234,7 +263,8 @@ export function PaymentAndSubscription({
         </div>
       </div>
 
-      {/* ⚠️ 支付狀態監控警告欄 */}
+      <div className="space-y-8">
+        {/* ⚠️ 支付狀態監控警告欄 */}
       {paymentError && (
         <div className="bg-rose-50/90 border-2 border-rose-200 rounded-2xl p-5 space-y-4 shadow-sm relative overflow-hidden" id="inline-payment-error-banner">
           <div className="absolute right-3 top-3 text-rose-500/10 text-5xl font-black select-none pointer-events-none">⚠️</div>
@@ -250,175 +280,249 @@ export function PaymentAndSubscription({
                 我們偵測到您剛才嘗試辦理<strong>『{paymentError.planName}』</strong>付款時遭遇連線中斷或系統安全驗證攔截（錯誤代碼：<span className="font-mono text-[11px] bg-rose-100 px-1.5 py-0.5 rounded text-rose-800">{paymentError.message}</span>）。
               </p>
               <p className="text-xs text-zinc-600 leading-relaxed font-serif">
-                不用擔心！為確保您的風水命理大氣不受任何延誤，我們的<strong>青衣分行特派秘書正線上待命</strong>，隨時提供人工綠色通道，為您保留原價折扣以及贈送的大氣權益，支持 PayMe、轉數快 (FPS) 或微信支付：
+                不用擔心！為確保您的風水命理大氣不受任何延誤，我們的<strong>青衣分行特派秘書正線上待命</strong>，隨時提供人工綠色快速登記服務。您可直接點擊下方按鈕或聯繫我們的人工秘書，透過「轉數快 (FPS)」等本地方式輕鬆辦理。
               </p>
-              <div className="pt-2 flex flex-wrap gap-2.5">
-                <a
-                  href={`https://wa.me/85291884964?text=${encodeURIComponent(`您好，我剛才在網站上嘗試辦理『${paymentError.planName}』，但付款通道連線異常（訊息：${paymentError.message}）。請秘書人工協助我完成登記付款，謝謝！`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>💬 立即 WhatsApp 聯絡秘書人工協助</span>
-                </a>
-                {setPaymentError && (
-                  <button
-                    type="button"
-                    onClick={() => setPaymentError(null)}
-                    className="px-4 py-2.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-700 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-                  >
-                    關閉此提示
-                  </button>
-                )}
-              </div>
             </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <a
+              href={`https://wa.me/85291884964?text=${encodeURIComponent(`您好，我剛才在網站上嘗試辦理『${paymentError.planName}』，但付款通道連線異常（訊息：${paymentError.message}）。請秘書人工協助我完成登記付款，謝謝！`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-[#25d366] hover:bg-[#20ba5a] text-white rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-all shadow-xs"
+            >
+              <span>💬 聯繫青衣秘書人工付費登記 (轉數快/預約)</span>
+            </a>
+            <button
+              onClick={() => setPaymentError?.(null)}
+              className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 text-zinc-700 rounded-xl text-xs font-bold text-center transition-colors"
+            >
+              我知道了
+            </button>
           </div>
         </div>
       )}
 
-      {/* 🔮 大師一對一親算開運專區 */}
-      <div className="bg-gradient-to-r from-[#590612]/5 via-[#bfa15f]/20 to-[#590612]/5 border-2 border-[#bfa15f]/70 rounded-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden shadow-lg">
-        <div className="absolute right-[-20px] bottom-[-20px] text-[#590612]/5 text-9xl font-black pointer-events-none select-none">☯</div>
-        
-        <div className="text-center space-y-2">
-          <span className="text-[10px] tracking-widest font-sans font-extrabold text-[#590612] uppercase bg-[#590612]/10 border border-[#590612]/20 px-3 py-1 rounded-full">
-            🔮 實體地舖誠信保障 · 專屬大師親自批命
-          </span>
-          <h3 className="text-2xl sm:text-3xl font-black text-[#590612] tracking-widest font-serif">
-            中聯家居風水命理 · 專屬親算立即預約
-          </h3>
-          <p className="text-xs sm:text-sm text-ink-900 max-w-2xl mx-auto leading-relaxed font-serif">
-            您獲得的初步推演為天命大數據之初探，而風水奧妙唯有一對一因人、因地、因時親算方可點石成金。林師傅（中聯家居青衣分行主持）將親自為您全盤推演，現在預約即享限時超值特惠！
-          </p>
-        </div>
-
-        {showPosters ? (
+      {showPosters ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto py-2">
-            <TraditionalPoster id="bazi" onCheckout={handleCheckout} isProcessingPayment={isProcessingPayment} />
-            <TraditionalPoster id="fengshui" onCheckout={handleCheckout} isProcessingPayment={isProcessingPayment} />
+            <div className="relative group">
+              <TraditionalPoster id="bazi" onCheckout={handleCheckout} isProcessingPayment={isProcessingPayment} />
+              
+              {/* 🟢 WhatsApp 懸浮球 (Floating Bubble) */}
+              <motion.a
+                href={getWhatsAppUrlForCard("bazi", form)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => triggerBlessing("🔮 大師賜福：元神凝聚、福星拱照！正在為您連線林大師以對接精批六十載大運走勢...")}
+                className="absolute bottom-24 -right-4 z-30 bg-[#25d366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-[0_4px_20px_rgba(37,211,102,0.6)] border-2 border-white hover:scale-110 active:scale-95 transition-all duration-300 group/wa cursor-pointer flex items-center justify-center animate-[bounce_3s_infinite_ease-in-out]"
+                title="💬 一鍵 WhatsApp 預約諮詢林師傅"
+              >
+                <MessageSquare className="w-6 h-6 fill-current text-white" />
+                <span className="absolute right-14 bg-zinc-900 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover/wa:opacity-100 transition-opacity pointer-events-none shadow-md font-serif border border-[#bfa15f]/40">
+                  💬 WhatsApp 一鍵預約林大師親算 (精批八字)
+                </span>
+                
+                {/* Ping decoration indicator */}
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+              </motion.a>
+            </div>
+
+            <div className="relative group">
+              <TraditionalPoster id="fengshui" onCheckout={handleCheckout} isProcessingPayment={isProcessingPayment} />
+              
+              {/* 🟢 WhatsApp 懸浮球 (Floating Bubble) */}
+              <motion.a
+                href={getWhatsAppUrlForCard("fengshui", form)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => triggerBlessing("🏠 大師賜福：生旺宅運、辟邪辟凶！正在為您對接林師傅登門為住宅實地布設羅盤大局...")}
+                className="absolute bottom-24 -right-4 z-30 bg-[#25d366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-[0_4px_20px_rgba(37,211,102,0.6)] border-2 border-white hover:scale-110 active:scale-95 transition-all duration-300 group/wa cursor-pointer flex items-center justify-center animate-[bounce_3s_infinite_ease-in-out]"
+                title="💬 一鍵 WhatsApp 預約諮詢林師傅"
+              >
+                <MessageSquare className="w-6 h-6 fill-current text-white" />
+                <span className="absolute right-14 bg-zinc-900 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover/wa:opacity-100 transition-opacity pointer-events-none shadow-md font-serif border border-[#bfa15f]/40">
+                  💬 WhatsApp 一鍵預約林大師現場實勘 (住宅風水)
+                </span>
+                
+                {/* Ping decoration indicator */}
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+              </motion.a>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Bazi 60 Year Grand Fortune Card */}
-            <div className="bg-white/90 border-2 border-[#bfa15f]/40 rounded-2xl p-6 flex flex-col justify-between shadow-md hover:shadow-xl transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute right-3 top-3 text-[#590612]/5 text-4xl font-black">🔮</div>
-              <div className="space-y-3">
-                <span className="text-[10px] bg-amber-600 text-white font-sans px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                  大師八字全盤親算
-                </span>
-                <h4 className="text-lg font-black text-[#590612] font-serif tracking-wide">
-                  🔮 個人生辰八字命盤深度精批
-                </h4>
-                <p className="text-xs text-ink-900 font-serif leading-relaxed">
-                  <strong>林大師全神專注推算，深度剖析您整整 60 年之大運吉凶走勢！</strong>全面解密您的一生元神衰旺、喜用神配置，精準推導事業財富機遇、姻緣婚姻走勢、流年健康關卡，助您在人生的風浪中占盡先機、趨吉避凶。
-                </p>
-                <ul className="space-y-2 text-xs text-ink-900 font-serif pt-1">
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span><strong>詳盡 60 年大運起伏與流年神批：</strong>每十年大運吉凶轉折精批。</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span><strong>本命五行元神喜忌開運指導：</strong>穿搭、方位、事業方向全面建議。</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span><strong>面對面/視訊一對一解盤：</strong>林師傅親自為您詳細解惑。</span>
-                  </li>
-                </ul>
-                <BaziDetailedIntro />
-              </div>
+            <div className="relative group">
+              <div className="bg-white/90 border-2 border-[#bfa15f]/40 rounded-2xl p-6 flex flex-col justify-between shadow-md hover:shadow-xl transition-all duration-300 relative overflow-hidden h-full">
+                <div className="absolute right-3 top-3 text-[#590612]/5 text-4xl font-black">🔮</div>
+                <div className="space-y-3">
+                  <span className="text-[10px] bg-amber-600 text-white font-sans px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    大師八字全盤親算
+                  </span>
+                  <h4 className="text-lg font-black text-[#590612] font-serif tracking-wide">
+                    🔮 個人生辰八字命盤深度精批
+                  </h4>
+                  <p className="text-xs text-ink-900 font-serif leading-relaxed">
+                    <strong>林大師全神專注推算，深度剖析您整整 60 年之大運吉凶走勢！</strong>全面解密您的一生元神衰旺、喜用神配置，精準推導事業財富機遇、姻緣婚姻走勢、流年健康關卡，助您在人生的風浪中占盡先機、趨吉避凶。
+                  </p>
+                  <ul className="space-y-2 text-xs text-ink-900 font-serif pt-1">
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span><strong>詳盡 60 年大運起伏與流年神批：</strong>每十年大運吉凶轉折精批。</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span><strong>本命五行元神喜忌開運指導：</strong>穿搭、方位、事業方向全面建議。</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span><strong>面對面/視訊一對一解盤：</strong>林師傅親自為您詳細解惑。</span>
+                    </li>
+                  </ul>
+                  <BaziDetailedIntro />
+                </div>
 
-              <div className="pt-4 border-t border-[#bfa15f]/25 mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs text-ink-400 line-through block">原價 HK$4,800</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs font-bold text-[#590612]">限時優惠價 </span>
-                    <span className="text-xl font-black text-[#590612] font-sans">HK$1,440</span>
+                <div className="pt-4 border-t border-[#bfa15f]/25 mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs text-ink-400 line-through block">原價 HK$4,800</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xs font-bold text-[#590612]">限時優惠價 </span>
+                      <span className="text-xl font-black text-[#590612] font-sans">HK$1,440</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:w-auto w-full">
+                    <button 
+                      type="button"
+                      onClick={() => handleCheckout("bazi", "個人八字全盤精批")}
+                      disabled={isProcessingPayment}
+                      className="px-5 py-3 bg-gradient-to-r from-[#590612] to-[#800c1e] hover:from-[#800c1e] hover:to-[#590612] text-white text-center font-sans font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>🌐 立即線上付費預約</span>
+                      <ChevronRight className="w-4 h-4 text-gold-200" />
+                    </button>
+                    <a 
+                      href={getWhatsAppUrlForCard("bazi", form)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => triggerBlessing("🔮 大師賜福：元神凝聚、福星拱照！正在為您連線林大師以對接精批六十載大運走勢...")}
+                      className="px-5 py-2 bg-[#25d366] hover:bg-[#20ba5a] text-white text-center font-sans font-extrabold text-[11px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
+                    >
+                      <span>💬 WhatsApp 快速鎖定名額</span>
+                    </a>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5 sm:w-auto w-full">
-                  <button 
-                    type="button"
-                    onClick={() => handleCheckout("bazi", "個人八字全盤精批")}
-                    disabled={isProcessingPayment}
-                    className="px-5 py-3 bg-gradient-to-r from-[#590612] to-[#800c1e] hover:from-[#800c1e] hover:to-[#590612] text-white text-center font-sans font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span>🌐 立即線上付費預約</span>
-                    <ChevronRight className="w-4 h-4 text-gold-200" />
-                  </button>
-                  <a 
-                    href={`https://wa.me/85291884964?text=${encodeURIComponent("您好，我想向林師傅預約『八字全盤大運精算』(優惠價HK$1440)，我想精算60年大運，謝謝！")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => triggerBlessing("🔮 大師賜福：元神凝聚、福星拱照！正在為您連線林大師以對接精批六十載大運走勢...")}
-                    className="px-5 py-2 bg-[#25d366] hover:bg-[#20ba5a] text-white text-center font-sans font-extrabold text-[11px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
-                  >
-                    <span>💬 WhatsApp 快速鎖定名額</span>
-                  </a>
-                </div>
               </div>
+
+              {/* 🟢 WhatsApp 懸浮球 (Floating Bubble) */}
+              <motion.a
+                href={getWhatsAppUrlForCard("bazi", form)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => triggerBlessing("🔮 大師賜福：元神凝聚、福星拱照！正在為您連線林大師以對接精批六十載大運走勢...")}
+                className="absolute bottom-24 -right-4 z-30 bg-[#25d366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-[0_4px_20px_rgba(37,211,102,0.6)] border-2 border-white hover:scale-110 active:scale-95 transition-all duration-300 group/wa cursor-pointer flex items-center justify-center animate-[bounce_3.4s_infinite_ease-in-out]"
+                title="💬 一鍵 WhatsApp 預約諮詢林師傅"
+              >
+                <MessageSquare className="w-6 h-6 fill-current text-white" />
+                <span className="absolute right-14 bg-zinc-900 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover/wa:opacity-100 transition-opacity pointer-events-none shadow-md font-serif border border-[#bfa15f]/40">
+                  💬 WhatsApp 一鍵預約林大師親算 (精批八字)
+                </span>
+                
+                {/* Ping decoration indicator */}
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+              </motion.a>
             </div>
 
             {/* Feng Shui Real Survey Card */}
-            <div className="bg-white/90 border-2 border-rose-200 rounded-2xl p-6 flex flex-col justify-between shadow-md hover:shadow-xl transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute right-3 top-3 text-[#590612]/5 text-4xl font-black">🏠</div>
-              <div className="space-y-3">
-                <span className="text-[10px] bg-rose-600 text-white font-sans px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                  大師現場風水勘察
-                </span>
-                <h4 className="text-lg font-black text-[#590612] font-serif tracking-wide">
-                  🏠 住宅家居風水現場佈局實測
-                </h4>
-                <p className="text-xs text-ink-900 font-serif leading-relaxed">
-                  <strong>實體地舖誠信保證！林師傅親自登門堪輿。</strong>結合您生辰八字與房屋的精準坐向、周邊磁場，為您的居所量身規劃九宮飛星旺財大陣、催文昌升職大局與避邪化煞神位。納福避凶，助您運勢起飛。
-                </p>
-                <ul className="space-y-2 text-xs text-ink-900 font-serif pt-1">
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span><strong>林大師攜羅盤親上府邸：</strong>精準測量坐向與周邊磁場格局。</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span><strong>九宮飛星旺財催丁大陣：</strong>布設招財、防小人、催旺姻緣陣法。</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span><strong>專屬空間風水調整平面報告：</strong>贈送精美排版、永久珍藏的風水指南。</span>
-                  </li>
-                </ul>
-                <FengShuiDetailedIntro />
-              </div>
+            <div className="relative group">
+              <div className="bg-white/90 border-2 border-rose-200 rounded-2xl p-6 flex flex-col justify-between shadow-md hover:shadow-xl transition-all duration-300 relative overflow-hidden h-full">
+                <div className="absolute right-3 top-3 text-[#590612]/5 text-4xl font-black">🏠</div>
+                <div className="space-y-3">
+                  <span className="text-[10px] bg-rose-600 text-white font-sans px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    大師現場風水勘察
+                  </span>
+                  <h4 className="text-lg font-black text-[#590612] font-serif tracking-wide">
+                    🏠 住宅家居風水現場佈局實測
+                  </h4>
+                  <p className="text-xs text-ink-900 font-serif leading-relaxed">
+                    <strong>實體地舖誠信保證！林師傅親自登門堪輿。</strong>結合您生辰八字與房屋的精準坐向、周邊磁場，為您的居所量身規劃九宮飛星旺財大陣、催文昌升職大局與避邪化煞神位。納福避凶，助您運勢起飛。
+                  </p>
+                  <ul className="space-y-2 text-xs text-ink-900 font-serif pt-1">
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span><strong>林大師攜羅盤親上府邸：</strong>精準測量坐向與周邊磁場格局。</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span><strong>九宮飛星旺財催丁大陣：</strong>布設招財、防小人、催旺姻緣陣法。</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span><strong>專屬空間風水調整平面報告：</strong>贈送精美排版、永久珍藏的風水指南。</span>
+                    </li>
+                  </ul>
+                  <FengShuiDetailedIntro />
+                </div>
 
-              <div className="pt-4 border-t border-[#bfa15f]/25 mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs text-ink-400 line-through block">原價 HK$9,200</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xs font-bold text-[#590612]">限時優惠價 </span>
-                    <span className="text-xl font-black text-[#590612] font-sans">HK$2,760</span>
+                <div className="pt-4 border-t border-[#bfa15f]/25 mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs text-ink-400 line-through block">原價 HK$9,200</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-xs font-bold text-[#590612]">限時優惠價 </span>
+                      <span className="text-xl font-black text-[#590612] font-sans">HK$2,760</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:w-auto w-full">
+                    <button 
+                      type="button"
+                      onClick={() => handleCheckout("fengshui", "住宅家居風水現場佈局實測")}
+                      disabled={isProcessingPayment}
+                      className="px-5 py-3 bg-gradient-to-r from-[#590612] to-[#800c1e] hover:from-[#800c1e] hover:to-[#590612] text-white text-center font-sans font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>🌐 立即線上付費預約</span>
+                      <ChevronRight className="w-4 h-4 text-gold-200" />
+                    </button>
+                    <a 
+                      href={getWhatsAppUrlForCard("fengshui", form)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => triggerBlessing("🏠 大師賜福：生旺宅運、辟邪辟凶！正在為您對接林師傅登門為住宅實地布設羅盤大局...")}
+                      className="px-5 py-2 bg-[#25d366] hover:bg-[#20ba5a] text-white text-center font-sans font-extrabold text-[11px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
+                    >
+                      <span>💬 WhatsApp 快捷鎖定名額</span>
+                    </a>
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5 sm:w-auto w-full">
-                  <button 
-                    type="button"
-                    onClick={() => handleCheckout("fengshui", "住宅家居風水現場佈局實測")}
-                    disabled={isProcessingPayment}
-                    className="px-5 py-3 bg-gradient-to-r from-[#590612] to-[#800c1e] hover:from-[#800c1e] hover:to-[#590612] text-white text-center font-sans font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1 hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span>🌐 立即線上付費預約</span>
-                    <ChevronRight className="w-4 h-4 text-gold-200" />
-                  </button>
-                  <a 
-                    href={`https://wa.me/85291884964?text=${encodeURIComponent("您好，我想向林師傅預約『家居風水現場佈局實地勘察』(優惠價HK$2760)，謝謝！")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => triggerBlessing("🏠 大師賜福：生旺宅運、辟邪辟凶！正在為您對接林師傅登門為住宅實地布設羅盤大局...")}
-                    className="px-5 py-2 bg-[#25d366] hover:bg-[#20ba5a] text-white text-center font-sans font-extrabold text-[11px] rounded-xl shadow-xs transition-all flex items-center justify-center gap-1"
-                  >
-                    <span>💬 WhatsApp 快捷鎖定名額</span>
-                  </a>
-                </div>
               </div>
+
+              {/* 🟢 WhatsApp 懸浮球 (Floating Bubble) */}
+              <motion.a
+                href={getWhatsAppUrlForCard("fengshui", form)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => triggerBlessing("🏠 大師賜福：生旺宅運、辟邪辟凶！正在為您對接林師傅登門為住宅實地布設羅盤大局...")}
+                className="absolute bottom-24 -right-4 z-30 bg-[#25d366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-[0_4px_20px_rgba(37,211,102,0.6)] border-2 border-white hover:scale-110 active:scale-95 transition-all duration-300 group/wa cursor-pointer flex items-center justify-center animate-[bounce_3.4s_infinite_ease-in-out]"
+                title="💬 一鍵 WhatsApp 預約諮詢林師傅"
+              >
+                <MessageSquare className="w-6 h-6 fill-current text-white" />
+                <span className="absolute right-14 bg-zinc-900 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover/wa:opacity-100 transition-opacity pointer-events-none shadow-md font-serif border border-[#bfa15f]/40">
+                  💬 WhatsApp 一鍵預約林大師現場實勘 (住宅風水)
+                </span>
+                
+                {/* Ping decoration indicator */}
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+              </motion.a>
             </div>
           </div>
         )}
