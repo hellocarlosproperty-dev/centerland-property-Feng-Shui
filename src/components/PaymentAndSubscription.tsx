@@ -1,7 +1,71 @@
 import React, { useState } from "react";
-import { Check, ChevronRight, Gem, ExternalLink, Info, Sparkles, Image as ImageIcon, LayoutGrid } from "lucide-react";
+import { Check, ChevronRight, Gem, ExternalLink, Info, Sparkles, Image as ImageIcon, LayoutGrid, Copy, QrCode, Coins, MessageSquare, CheckCircle2 } from "lucide-react";
 import { BaziDetailedIntro, FengShuiDetailedIntro } from "./ProductIntros";
 import { TraditionalPoster } from "./TraditionalPoster";
+import { QRCodeSVG } from "qrcode.react";
+
+const FPS_SERVICES = [
+  { id: "bazi", name: "🔮 個人生辰八字命盤深度精批 (限時優惠)", price: 1440, type: "one-time" },
+  { id: "fengshui", name: "🏠 住宅家居風水現場佈局實測 (限時優惠)", price: 2760, type: "one-time" },
+  { id: "basic", name: "💎 基礎運勢訂閱 Plan", price: 99, type: "monthly" },
+  { id: "pro", name: "💎 專業流月訂閱 Plan", price: 380, type: "monthly" },
+  { id: "premium", name: "💎 尊貴風水訂閱 Plan", price: 1288, type: "monthly" },
+  { id: "enterprise", name: "💎 小企業風水顧問訂閱 Plan", price: 3888, type: "monthly" },
+  { id: "custom", name: "✍️ 自訂開運功德金額", price: 100, type: "custom" }
+];
+
+const generateFpsQrCodeString = (phone: string, amount: number, reference: string = "CNTSPAY") => {
+  try {
+    const pfi = "000201";
+    const poi = "010211"; // Static payload is standard for simple open or fixed transfers
+    
+    // Merchant Account Info (Tag 26)
+    const appId = "0015HK.COM.HKICL.FPS";
+    const formattedPhone = phone.startsWith("+852") ? phone : `+852-${phone}`;
+    const phoneSubtag = `02${formattedPhone.length.toString().padStart(2, '0')}${formattedPhone}`;
+    const accountInfoValue = `${appId}${phoneSubtag}`;
+    const accountInfo = `26${accountInfoValue.length.toString().padStart(2, '0')}${accountInfoValue}`;
+    
+    const mcc = "52040000";
+    const currency = "5303344"; // 344 is HKD
+    
+    let amountTag = "";
+    if (amount > 0) {
+      const amountStr = amount.toFixed(2);
+      amountTag = `54${amountStr.length.toString().padStart(2, '0')}${amountStr}`;
+    }
+    
+    const countryCode = "5802HK";
+    const merchantName = "Lam Hok Kan";
+    const nameTag = `59${merchantName.length.toString().padStart(2, '0')}${merchantName}`;
+    const cityTag = "6002HK";
+    
+    // Reference Template (Tag 62)
+    const cleanRef = reference.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, 25);
+    const refLabel = `05${cleanRef.length.toString().padStart(2, '0')}${cleanRef}`;
+    const refTag = `62${refLabel.length.toString().padStart(2, '0')}${refLabel}`;
+    
+    const payloadBeforeCRC = `${pfi}${poi}${accountInfo}${mcc}${currency}${amountTag}${countryCode}${nameTag}${cityTag}${refTag}6304`;
+    
+    // CRC16 CCITT
+    let crc = 0xFFFF;
+    for (let i = 0; i < payloadBeforeCRC.length; i++) {
+      crc ^= payloadBeforeCRC.charCodeAt(i) << 8;
+      for (let j = 0; j < 8; j++) {
+        if (crc & 0x8000) {
+          crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+        } else {
+          crc = (crc << 1) & 0xFFFF;
+        }
+      }
+    }
+    const crcHex = crc.toString(16).toUpperCase().padStart(4, '0');
+    return `${payloadBeforeCRC}${crcHex}`;
+  } catch (err) {
+    console.error("Error generating FPS string", err);
+    return `FPS:60798753?amount=${amount}`;
+  }
+};
 
 export interface SubscriptionState {
   planId: string;
@@ -102,6 +166,8 @@ interface PaymentAndSubscriptionProps {
   handleRemoveSubscription: () => void;
   handleSimulateSubscription: (planId: string) => void;
   triggerBlessing: (msg: string) => void;
+  paymentError?: { message: string; planName: string; planId: string } | null;
+  setPaymentError?: (err: { message: string; planName: string; planId: string } | null) => void;
 }
 
 export function PaymentAndSubscription({
@@ -111,9 +177,25 @@ export function PaymentAndSubscription({
   handleCancelSubscription,
   handleRemoveSubscription,
   handleSimulateSubscription,
-  triggerBlessing
+  triggerBlessing,
+  paymentError,
+  setPaymentError
 }: PaymentAndSubscriptionProps) {
   const [showPosters, setShowPosters] = useState(true);
+
+  // FPS States
+  const [fpsSelectedService, setFpsSelectedService] = useState("bazi");
+  const [fpsPayerName, setFpsPayerName] = useState("");
+  const [fpsPayerContact, setFpsPayerContact] = useState("");
+  const [fpsCustomAmount, setFpsCustomAmount] = useState("100");
+  const [fpsCopiedPhone, setFpsCopiedPhone] = useState(false);
+  const [fpsCopiedAmount, setFpsCopiedAmount] = useState(false);
+  const [fpsReportedSuccess, setFpsReportedSuccess] = useState(false);
+
+  const selectedFpsItem = FPS_SERVICES.find(s => s.id === fpsSelectedService) || FPS_SERVICES[0];
+  const fpsPrice = selectedFpsItem.id === "custom" 
+    ? (parseFloat(fpsCustomAmount) || 0) 
+    : selectedFpsItem.price;
 
   return (
     <div className="space-y-12 mt-12 pt-8 border-t-2 border-[#bfa15f]/25">
@@ -151,6 +233,49 @@ export function PaymentAndSubscription({
           </button>
         </div>
       </div>
+
+      {/* ⚠️ 支付狀態監控警告欄 */}
+      {paymentError && (
+        <div className="bg-rose-50/90 border-2 border-rose-200 rounded-2xl p-5 space-y-4 shadow-sm relative overflow-hidden" id="inline-payment-error-banner">
+          <div className="absolute right-3 top-3 text-rose-500/10 text-5xl font-black select-none pointer-events-none">⚠️</div>
+          <div className="flex items-start gap-3.5">
+            <div className="bg-rose-100 p-2.5 rounded-xl text-rose-600 font-bold flex-shrink-0 animate-pulse">
+              ⚠️
+            </div>
+            <div className="space-y-1.5 flex-1">
+              <h4 className="text-sm font-black text-rose-900 font-serif tracking-wide">
+                安全金流通道提示：暫時無法連接 Stripe 伺服器
+              </h4>
+              <p className="text-xs text-rose-700 leading-relaxed font-serif">
+                我們偵測到您剛才嘗試辦理<strong>『{paymentError.planName}』</strong>付款時遭遇連線中斷或系統安全驗證攔截（錯誤代碼：<span className="font-mono text-[11px] bg-rose-100 px-1.5 py-0.5 rounded text-rose-800">{paymentError.message}</span>）。
+              </p>
+              <p className="text-xs text-zinc-600 leading-relaxed font-serif">
+                不用擔心！為確保您的風水命理大氣不受任何延誤，我們的<strong>青衣分行特派秘書正線上待命</strong>，隨時提供人工綠色通道，為您保留原價折扣以及贈送的大氣權益，支持 PayMe、轉數快 (FPS) 或微信支付：
+              </p>
+              <div className="pt-2 flex flex-wrap gap-2.5">
+                <a
+                  href={`https://wa.me/85291884964?text=${encodeURIComponent(`您好，我剛才在網站上嘗試辦理『${paymentError.planName}』，但付款通道連線異常（訊息：${paymentError.message}）。請秘書人工協助我完成登記付款，謝謝！`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>💬 立即 WhatsApp 聯絡秘書人工協助</span>
+                </a>
+                {setPaymentError && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentError(null)}
+                    className="px-4 py-2.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-700 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    關閉此提示
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 🔮 大師一對一親算開運專區 */}
       <div className="bg-gradient-to-r from-[#590612]/5 via-[#bfa15f]/20 to-[#590612]/5 border-2 border-[#bfa15f]/70 rounded-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden shadow-lg">
         <div className="absolute right-[-20px] bottom-[-20px] text-[#590612]/5 text-9xl font-black pointer-events-none select-none">☯</div>
@@ -300,6 +425,265 @@ export function PaymentAndSubscription({
 
         <div className="text-center text-xs font-serif text-[#590612] font-semibold bg-[#590612]/5 rounded-xl py-3 border border-[#bfa15f]/20">
           📣 客人可在網上立即完成安全付費預約！林大師與秘書將在第一時間主動聯絡您，或撥打大師直撥專線 / 親臨青衣海悅花園 32 號實體地舖，開啟您一生的好運軌跡。
+        </div>
+      </div>
+
+      {/* ⚡ 轉數快 (FPS) 零手續費免扣卡特快通道 */}
+      <div id="fps_payment_section" className="bg-gradient-to-r from-[#590612]/5 via-amber-50/30 to-[#590612]/5 border-2 border-amber-500/40 rounded-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden shadow-lg">
+        <div className="absolute right-[-10px] bottom-[-10px] text-amber-500/5 text-9xl font-black pointer-events-none select-none">⚡</div>
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#bfa15f]/20 pb-4">
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold text-amber-800 bg-amber-100 border border-amber-200 px-3 py-1 rounded-full uppercase font-sans">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              ⚡ 本地免手續費通道 FPS FASTPAY
+            </span>
+            <h3 className="text-xl sm:text-2xl font-black text-[#590612] tracking-wider font-serif flex items-center gap-2 mt-1">
+              <span>轉數快 (FPS) 免卡付款 · 享福澤安康</span>
+            </h3>
+            <p className="text-xs text-ink-900 font-serif leading-relaxed">
+              為減輕信用卡之第三方中介手續費，並將全數功德福報回饋施主，我們特設<strong>「轉數快 (FPS)」人工綠色管道</strong>。林師傅將親自開壇，為使用此管道付款的善信額外加持祈福！
+            </p>
+          </div>
+          <div className="flex-shrink-0 bg-white border border-amber-200 rounded-xl p-3 shadow-xs flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-lg bg-orange-600 flex flex-col items-center justify-center text-white text-[10px] font-extrabold shadow-sm select-none">
+              <span className="leading-none text-xs">FPS</span>
+              <span className="text-[7px] font-sans tracking-tighter scale-90 mt-0.5">轉數快</span>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500 font-sans uppercase">Payee Account</p>
+              <p className="text-xs font-black text-zinc-800 font-mono">6079 8753</p>
+              <p className="text-[9px] text-amber-700 font-serif font-semibold">收款人: Lam Hok Kan (林學勤)</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* 左欄：付款設定資訊 */}
+          <div className="lg:col-span-7 space-y-5 bg-white/75 backdrop-blur-xs p-5 rounded-xl border border-amber-200/40 shadow-sm">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-black text-[#590612] font-serif">
+                1. 選擇要付款/預約的服務方案：
+              </label>
+              <select
+                value={fpsSelectedService}
+                onChange={(e) => {
+                  setFpsSelectedService(e.target.value);
+                  setFpsReportedSuccess(false);
+                  triggerBlessing(`⚡ 已切換轉數快預算方案為【${FPS_SERVICES.find(s => s.id === e.target.value)?.name}】`);
+                }}
+                className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs text-stone-800 font-serif font-black focus:outline-hidden transition-all"
+              >
+                {FPS_SERVICES.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} {item.id !== "custom" && `(HK$${item.price})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {fpsSelectedService === "custom" && (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-[#590612] font-serif">
+                  ✍️ 輸入自訂開運/功德金額 (HKD)：
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-stone-500">HK$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="請輸入金額"
+                    value={fpsCustomAmount}
+                    onChange={(e) => {
+                      setFpsCustomAmount(e.target.value);
+                      setFpsReportedSuccess(false);
+                    }}
+                    className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-500 rounded-xl pl-12 pr-3 py-2 text-xs text-stone-800 font-mono font-bold focus:outline-hidden transition-all"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500 font-serif">
+                  ※ 此處款項將直接入賬林大師開壇法器之購置與善緣積累。
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-stone-700 font-serif">
+                  2. 付款人真實姓名 (用於系統核對)：
+                </label>
+                <input
+                  type="text"
+                  placeholder="例：陳大文"
+                  value={fpsPayerName}
+                  onChange={(e) => setFpsPayerName(e.target.value)}
+                  className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-stone-800 font-serif font-bold focus:outline-hidden transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-stone-700 font-serif">
+                  3. 聯絡電話 / WhatsApp (發送開運報告)：
+                </label>
+                <input
+                  type="text"
+                  placeholder="例：91234567"
+                  value={fpsPayerContact}
+                  onChange={(e) => setFpsPayerContact(e.target.value)}
+                  className="w-full bg-stone-50 border-2 border-stone-200 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-stone-800 font-mono font-bold focus:outline-hidden transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-amber-200/30 pt-4 space-y-3">
+              <div className="text-xs font-serif text-stone-800 leading-relaxed bg-amber-500/5 p-3 rounded-xl border border-amber-500/10 space-y-1.5">
+                <span className="font-black text-[#590612] text-[11px] block flex items-center gap-1">
+                  💡 電子銀行轉賬小提示 (如果您在手機上操作)：
+                </span>
+                <p className="text-[11px] text-stone-600">
+                  如果您目前正使用本站的手機端，難以直接掃描右側二維碼，請直接複製下方資訊至您的銀行網上 App 辦理轉數快轉賬：
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 flex flex-col justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] text-zinc-500 font-sans">FPS 收款人電話號碼</p>
+                    <p className="font-mono font-extrabold text-stone-800 text-sm">6079 8753</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText("60798753");
+                      setFpsCopiedPhone(true);
+                      triggerBlessing("📋 已為您複製轉數快號碼：60798753！請在銀行 App 貼上完成付費。");
+                      setTimeout(() => setFpsCopiedPhone(false), 3000);
+                    }}
+                    className="mt-2 w-full py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-[10px] font-bold text-stone-700 transition-colors cursor-pointer flex items-center justify-center gap-1 animate-none"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{fpsCopiedPhone ? "已複製 ✓" : "複製電話號碼"}</span>
+                  </button>
+                </div>
+
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 flex flex-col justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] text-zinc-500 font-sans">應付金額 (HKD)</p>
+                    <p className="font-mono font-extrabold text-[#590612] text-sm">HK$ {fpsPrice.toLocaleString()}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(fpsPrice.toString());
+                      setFpsCopiedAmount(true);
+                      triggerBlessing(`📋 已為您複製應付金額：${fpsPrice}元！請在銀行 App 中核對。`);
+                      setTimeout(() => setFpsCopiedAmount(false), 3000);
+                    }}
+                    className="mt-2 w-full py-1.5 bg-stone-200 hover:bg-stone-300 rounded-lg text-[10px] font-bold text-stone-700 transition-colors cursor-pointer flex items-center justify-center gap-1 animate-none"
+                  >
+                    <Copy className="w-3 h-3" />
+                    <span>{fpsCopiedAmount ? "已複製 ✓" : "複製金額"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 右欄：FPS 動態 QR CODE 與核對 */}
+          <div className="lg:col-span-5 flex flex-col items-center">
+            <div className="w-full bg-gradient-to-b from-[#590612] to-[#800c1e] text-white p-5 rounded-2xl shadow-md border-2 border-[#bfa15f] space-y-4 relative overflow-hidden text-center max-w-xs mx-auto">
+              {/* Phone Frame decoration */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-3.5 bg-black/40 rounded-full" />
+              
+              <div className="pt-2 text-[10px] tracking-widest font-sans font-black text-amber-300 uppercase">
+                掃碼特快入賬 · 免卡手續費
+              </div>
+              
+              <div className="bg-white p-4 rounded-xl shadow-inner inline-block relative border-2 border-amber-300">
+                <QRCodeSVG
+                  value={generateFpsQrCodeString("60798753", fpsPrice, `CNTS${fpsSelectedService.toUpperCase().substring(0,6)}`)}
+                  size={180}
+                  level="H"
+                  includeMargin={false}
+                />
+                
+                {/* Micro logo in QR Center */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-1 rounded-md border border-stone-200 shadow-sm">
+                  <div className="w-6 h-6 bg-orange-600 rounded flex items-center justify-center text-white font-extrabold text-[7px] leading-tight select-none">
+                    FPS
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1 text-center font-serif text-stone-100">
+                <p className="text-xs font-black text-amber-200 flex items-center justify-center gap-1">
+                  <QrCode className="w-3.5 h-3.5 text-amber-300" />
+                  <span>打開網上銀行 / 八達通 / PayMe 掃描</span>
+                </p>
+                <p className="text-[10px] text-stone-200 leading-relaxed px-2">
+                  支持 恆生、滙豐、中銀、渣打等所有香港主流銀行，自動識別收款人及預填金額。
+                </p>
+              </div>
+
+              <div className="bg-white/10 border border-white/10 rounded-xl p-2.5 space-y-1 text-left font-serif text-[10px]">
+                <div className="flex justify-between text-stone-200">
+                  <span>收款機構:</span>
+                  <span className="font-mono font-bold text-white">轉數快 (FPS)</span>
+                </div>
+                <div className="flex justify-between text-stone-200">
+                  <span>收款帳戶:</span>
+                  <span className="font-mono font-bold text-white">6079 8753</span>
+                </div>
+                <div className="flex justify-between text-stone-200">
+                  <span>收款戶名:</span>
+                  <span className="font-bold text-amber-200">Lam Hok Kan (林學勤)</span>
+                </div>
+                <div className="flex justify-between text-stone-200">
+                  <span>付款備註 (Ref):</span>
+                  <span className="font-mono font-bold text-white">CNTS{fpsSelectedService.toUpperCase()}</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <a
+                  href={`https://wa.me/85291884964?text=${encodeURIComponent(
+                    `您好，我已使用轉數快 (FPS) 付款支援林大師開運服務！\n\n【付款明細】\n服務方案：${selectedFpsItem.name}\n應付金額：HK$${fpsPrice}\n付款人姓名：${fpsPayerName || "未提供"}\n聯絡電話：${fpsPayerContact || "未提供"}\n付款備註碼：CNTS${fpsSelectedService.toUpperCase()}\n\n這是我剛轉賬成功的截圖，請秘書人工為我核實並開啟尊貴法會權益，謝謝！`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    setFpsReportedSuccess(true);
+                    triggerBlessing(`⚡ 功德無量！正在為您導向至 WhatsApp 與秘書人工核對『${selectedFpsItem.name}』的轉數快款項...`);
+                  }}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-serif font-black transition-all flex items-center justify-center gap-1.5 shadow-md hover:scale-[1.02] cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>💬 傳送付款截圖至 WhatsApp</span>
+                </a>
+              </div>
+            </div>
+
+            {/* 模擬登記成功與系統自主核實按鈕 */}
+            <div className="mt-4 w-full max-w-xs space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setFpsReportedSuccess(true);
+                  triggerBlessing(`🔮 福緣已結，喜氣洋洋！本命系統已即時為 ${fpsPayerName || "您"} 登記「轉數快免卡預約意向」。大師已將您的八字命盤載入青衣分行實體功德薄。林師傅及秘書將在一個工作天內主動聯絡您確認！`);
+                }}
+                className="w-full py-2 border border-dashed border-[#bfa15f]/40 hover:bg-[#bfa15f]/10 text-gold-700 rounded-xl text-xs font-serif font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>🧪 模擬付款已完成 (免審核即時登記)</span>
+              </button>
+
+              {fpsReportedSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center text-[10px] text-emerald-800 font-serif leading-relaxed animate-fade-in">
+                  🎉 <strong>登記成功！</strong>系統已成功建立您的 FPS 專屬善信核對工單。請儘快將轉賬截圖透過 WhatsApp 發送給特派秘書核實，以便即時啟用服務。
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

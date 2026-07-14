@@ -30,6 +30,23 @@ const getGeminiClient = () => {
 
 const ai = getGeminiClient();
 
+// Helper to handle fetch with a strict timeout to prevent indefinite hanging/gateway timeout errors
+async function fetchWithTimeout(resource: string, options: any = {}, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 // Helper to handle Gemini API generation with retries and fallback models in case of transient errors (like 503 Service Unavailable)
 async function generateContentWithRetry(aiClient: any, params: any) {
   const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
@@ -110,27 +127,8 @@ app.post("/api/submit", async (req, res) => {
     submittedAt: new Date().toISOString()
   };
 
-  // 1. Send data to Make.com Webhook
+  // 1. We will call the Make.com Webhook later with the full rich results!
   let webhookSuccess = false;
-  try {
-    const webhookUrl = "https://hook.eu2.make.com/p17gq5xl4vy79os7tz6qc5aue5y1trg8";
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (response.ok) {
-      webhookSuccess = true;
-      console.log("Successfully sent data to Make.com webhook.");
-    } else {
-      console.error(`Make.com webhook returned status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error("Failed to forward data to Make.com webhook:", error);
-  }
 
   // 2. Query Yuanfenju API first to get authentic Bazi calculations
   let yuanfenjuData = null;
@@ -154,11 +152,11 @@ app.post("/api/submit", async (req, res) => {
       formData.append("minute", birthMinute || "00");
 
       console.log(`Querying Yuanfenju API for: ${name}, sex: ${sexVal} (${gender}), date: ${birthDate} ${birthHour}:${birthMinute}`);
-      const yfResponse = await fetch("https://api.yuanfenju.com/index.php/v1/bazi/cesuan", {
+      const yfResponse = await fetchWithTimeout("https://api.yuanfenju.com/index.php/v1/bazi/cesuan", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString()
-      });
+      }, 5000);
 
       if (yfResponse.ok) {
         const yfJson = await yfResponse.json() as any;
@@ -223,23 +221,23 @@ ${yfContext}
 3. destinyReading: 命理主五行與現代心理學大師詳細分析。
    【重要格式與內容要求】：
    - 請一律使用「繁體中文（台灣/香港習慣）」回傳。
-   - 結構必須清晰，多用 MarkDown 標題與清單，字數控制在 800 - 1200 字之間。
+   - 結構必須清晰，多用 MarkDown 標題與清單，字數控制在 500 - 800 字之間。
    - 不要使用「剋夫」、「命薄」等封建或恐嚇性詞彙。請將「財多身弱」轉化為「容易因外在誘惑分心，需注重專注力管理」；將「官殺混雜」轉化為「職涯初期面臨多元選擇與壓力，需建立核心護城河」，以現代心理學和溫暖建設性的語調進行轉化。
    - 請嚴格且必須包含以下 Markdown 四大結構：
      ### 🌟 本命核心（日主、喜用、核心性格）
-     [在此詳細剖析其日主、喜用神，以及融合理性心理學的核心性格，指出盲點，約 250 - 300 字]
+     [在此詳細剖析其日主、喜用神，以及融合理性心理學的核心性格，指出盲點，約 150 - 200 字]
 
      ### 💼 事業與財運格局（潛力與適合方向）
-     [在此分析其八字事業格局，結合現代生涯規劃，提供具體、可落地的發展方向、潛力，特別針對關心服務項目：${servicesString} 進行融入，約 250 - 300 字]
+     [在此分析其八字事業格局，結合現代生涯規劃，提供具體、可落地的發展方向、潛力，特別針對關心服務項目：${servicesString} 進行融入，約 150 - 200 字]
 
      ### 🔮 流年運勢精批（當前大運與今年流年的吉凶與應對策略）
-     [在此結合當前大運與流年，給出具體、可操作的「流年事業/財運/感情」具體建議（例如：何時適合保守、何時適合進攻），特別融入下元九運離火運的機遇，約 250 - 300 字]
+     [在此結合當前大運與流年，給出具體、可操作的「流年事業/財運/感情」具體建議（例如：何時適合保守、何時適合進攻），特別融入下元九運離火運的機遇，約 150 - 200 字]
 
      ### 🧭 大師開運建議（一兩句具體的日常調整建議）
-     [在此給出一兩句極其具體、容易操作的日常心理學與五行開運微小動作調整建議，約 100 字]
+     [在此給出一兩句極其具體、容易操作的日常心理學與五行開運微小動作調整建議，約 60 - 80 字]
 
-4. spaceAdvice: 專屬家居風水與佈局大師建議（約 450 字，結合其「${identity}」身份和主五行，為其居家空間提供具體、可落地的方位佈置。請按玄關、客廳、臥室、廚房等區域進行詳盡的室內佈局或軟裝指南，如果客戶選擇了風水陣或家居風水，請加入相關秘傳佈置法門）。
-5. addressAura: 居住地址氣場與地靈點評（約 250 字，從字面、地理方位、山水巒頭或數理格局深層解構其地址氣場，給予強烈且具體的吉利暗示，並提供相應的微調避煞或納氣建議）。
+4. spaceAdvice: 專屬家居風水與佈局大師建議（約 250 字，結合其「${identity}」身份和主五行，為其居家空間提供具體、可落地的方位佈置。請按玄關、客廳、臥室、廚房等區域進行詳盡的室內佈局或軟裝指南，如果客戶選擇了風水陣或家居風水，請加入相關秘傳佈置法門）。
+5. addressAura: 居住地址氣場與地靈點評（約 150 字，從字面、地理方位、山水巒頭或數理格局深層解構其地址氣場，給予強烈且具體的吉利暗示，並提供相應的微調避煞或納氣建議）。
 6. auspiciousColors: 3 個最契合的幸運顏色（以中文命名，例如「黛綠」、「玄青」、「硃砂紅」、「秋香黃」、「潤白」）。
 7. tips: 3 個簡單實用的「趨吉避凶」與生活美學開運法門（特別針對客戶所選服務：${servicesString} 給予實用建議）。
 
@@ -383,6 +381,33 @@ ${yfContext}
     (calculationResult as any).yuanfenju = yuanfenjuData;
   }
 
+  // Send fully-populated payload to Make.com Webhook (inputs + generated analysis + Bazi metrics)
+  try {
+    const webhookUrl = "https://hook.eu2.make.com/p17gq5xl4vy79os7tz6qc5aue5y1trg8";
+    const webhookPayload = {
+      ...payload,
+      analysisResult: calculationResult
+    };
+
+    console.log(`[Make.com Webhook] Sending rich analysis payload to: ${webhookUrl}`);
+    const webhookResponse = await fetchWithTimeout(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(webhookPayload),
+    }, 5000);
+
+    if (webhookResponse.ok) {
+      webhookSuccess = true;
+      console.log("[Make.com Webhook] Successfully sent complete client and analysis details to Make.com!");
+    } else {
+      console.error(`[Make.com Webhook] Failed. Returned status: ${webhookResponse.status}`);
+    }
+  } catch (err: any) {
+    console.error("[Make.com Webhook] Exception while sending data:", err?.message || err);
+  }
+
   res.json({
     success: true,
     webhookSuccess,
@@ -394,18 +419,6 @@ ${yfContext}
 app.post("/api/create-checkout-session", async (req, res) => {
   const { type } = req.body;
   
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  const appUrl = process.env.APP_URL || "http://localhost:3000";
-  
-  if (!stripeSecretKey) {
-    console.warn("STRIPE_SECRET_KEY is not set. Simulating a successful Stripe payment redirect...");
-    // Fallback to simulated payment success redirect for easy previewing
-    return res.json({
-      url: `${appUrl}/?payment_success=true&plan=${type}`,
-      isMock: true
-    });
-  }
-
   // Exact live Stripe Payment Links created by the user for direct secure routing
   const PRODUCTS_MAP: Record<string, { name: string; url: string }> = {
     basic: {

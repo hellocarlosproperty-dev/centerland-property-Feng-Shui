@@ -41,6 +41,7 @@ import { BaziDetailedIntro, FengShuiDetailedIntro } from "./components/ProductIn
 import { AuspiciousCalendar } from "./components/AuspiciousCalendar";
 import { PaymentAndSubscription } from "./components/PaymentAndSubscription";
 import { PremiumBottomBar } from "./components/PremiumBottomBar";
+import { PaymentStatusMonitor } from "./components/PaymentStatusMonitor";
 
 // Function to handle bold text like **text**
 function renderBoldText(text: string) {
@@ -775,10 +776,12 @@ export default function App() {
   };
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<{ message: string; planName: string; planId: string } | null>(null);
 
   const handleCheckout = async (type: string, planName: string) => {
     if (isProcessingPayment) return;
     setIsProcessingPayment(true);
+    setPaymentError(null);
     triggerBlessing(`🔮 大師賜福：正在為您對接 Stripe 專屬安全付款通道。福至心靈，起運在即！`);
     
     try {
@@ -792,14 +795,27 @@ export default function App() {
       
       const data = await response.json();
       if (data.url) {
+        setPaymentError(null);
         // Safe redirect to Stripe payment checkout
         window.location.href = data.url;
       } else {
-        alert("無法啟動付款，請稍後再試或使用 WhatsApp 預約：" + (data.error || "未知錯誤"));
+        const errorMsg = data.error || "Stripe 金流伺服器未響應";
+        setPaymentError({
+          message: errorMsg,
+          planName,
+          planId: type
+        });
+        alert("無法啟動付款，請稍後再試或使用 WhatsApp 預約：" + errorMsg);
         setIsProcessingPayment(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Stripe payment request failed:", err);
+      const errorMsg = err?.message || "伺服器或網路連線異常";
+      setPaymentError({
+        message: errorMsg,
+        planName,
+        planId: type
+      });
       alert("網路連線異常，請稍後再試，或使用 WhatsApp 聯絡大師秘書。");
       setIsProcessingPayment(false);
     }
@@ -3451,6 +3467,8 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
         handleRemoveSubscription={handleRemoveSubscription}
         handleSimulateSubscription={handleSimulateSubscription}
         triggerBlessing={triggerBlessing}
+        paymentError={paymentError}
+        setPaymentError={setPaymentError}
       />
     </div>
   </main>
@@ -4638,6 +4656,13 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
       setIsExpanded={setIsPremiumBarExpanded}
     />
   )}
+
+  {/* 支付狀態監控模組 (Stripe Error WhatsApp Assistance Link) */}
+  <PaymentStatusMonitor
+    paymentError={paymentError}
+    onClose={() => setPaymentError(null)}
+    userName={form.name}
+  />
 </div>
   );
 }
