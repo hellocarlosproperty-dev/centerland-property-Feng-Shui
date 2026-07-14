@@ -42,6 +42,10 @@ import { AuspiciousCalendar } from "./components/AuspiciousCalendar";
 import { PaymentAndSubscription } from "./components/PaymentAndSubscription";
 import { PremiumBottomBar } from "./components/PremiumBottomBar";
 import { PaymentStatusMonitor } from "./components/PaymentStatusMonitor";
+import { MasterLamGuideButton } from "./components/MasterLamGuideButton";
+import luopanImg from "./assets/images/fengshui_luopan_1783843400904.jpg";
+import centerlandHeartIcon from "./assets/images/centerland_heart_icon_1784028201055.jpg";
+
 
 // Function to handle bold text like **text**
 function renderBoldText(text: string) {
@@ -282,9 +286,9 @@ const PLANS_DATA = [
     price: "99",
     tagline: "適合：日常自主命理開運",
     desc: "每月精算八字運勢詳解簡報，直接發送至電郵。掌握流月、流日之生氣走勢，提供專屬命盤狀態庫。",
-    stripeLink: "https://buy.stripe.com/plink_1Tq2WfEM8cyuVpLZB6AImBLd",
+    stripeLink: "https://buy.stripe.com/4gMeVd2iS7tUbZX48GbbG03",
     productId: "prod_UphkxOHq2KNzem",
-    paymentLinkId: "plink_1Tq2WfEM8cyuVpLZB6AImBLd",
+    paymentLinkId: "4gMeVd2iS7tUbZX48GbbG03",
     bullets: [
       "每月精算八字運勢簡報",
       "流月、流日磁場吉凶分析",
@@ -302,9 +306,9 @@ const PLANS_DATA = [
     price: "380",
     tagline: "適合：追求精准時機之人士",
     desc: "基礎內容 + 每月八字流月運程 PDF 報告。融入大師特別微調，以及董公烏兔吉日吉時精算。",
-    stripeLink: "https://buy.stripe.com/plink_1Tq2XgEM8cyuVpLZruvQKc8P",
+    stripeLink: "https://buy.stripe.com/4gMbJ19Lk15w6FD9t0bbG01",
     productId: "prod_UphgaeXHNDL5Ev",
-    paymentLinkId: "plink_1Tq2XgEM8cyuVpLZruvQKc8P",
+    paymentLinkId: "4gMbJ19Lk15w6FD9t0bbG01",
     bullets: [
       "包含「基礎運勢 Plan」全部內容",
       "每月精裝「流月運程解碼」PDF",
@@ -322,9 +326,9 @@ const PLANS_DATA = [
     price: "1,288",
     tagline: "適合：改善家宅氣場、安居旺業",
     desc: "專業內容 + 家居風水流年套餐（專人一對一全程跟進）。針對戶型進行九宮飛星佈局調整。",
-    stripeLink: "https://buy.stripe.com/plink_1Tq2YNEM8cyuVpLZrIcOkXgb",
+    stripeLink: "https://buy.stripe.com/fZu9ATcXw4hI0hf34CbbG00",
     productId: "prod_UphhBgU8BUUxPz",
-    paymentLinkId: "plink_1Tq2YNEM8cyuVpLZrIcOkXgb",
+    paymentLinkId: "fZu9ATcXw4hI0hf34CbbG00",
     bullets: [
       "包含「專業流月 Plan」全部內容",
       "家居風水流年佈局套餐（專人跟進）",
@@ -342,9 +346,9 @@ const PLANS_DATA = [
     price: "3,888",
     tagline: "適合：中小企業、辦公室風水催旺",
     desc: "企業辦公室風水佈局、全盤八字合婚/合夥分析、年度流年大報告。含全年四次大師親自上門服務。",
-    stripeLink: "https://buy.stripe.com/plink_1Tq2ZCEM8cyuVpLZA06Bi86e",
+    stripeLink: "https://buy.stripe.com/eVq8wP0aK7tUbZX20ybbG02",
     productId: "prod_UphkxOHq2KNzem",
-    paymentLinkId: "plink_1Tq2ZCEM8cyuVpLZA06Bi86e",
+    paymentLinkId: "eVq8wP0aK7tUbZX20ybbG02",
     bullets: [
       "辦公室財位風水催旺佈局",
       "核心股東/合夥人八字契合天算",
@@ -497,7 +501,9 @@ export default function App() {
       for (let i = 0; i < bytes.byteLength; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
-      return btoa(binary);
+      const base64 = btoa(binary);
+      // Make Base64 URL-safe by replacing +, / and removing =
+      return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
     } catch (e) {
       console.error("分享連結序列化失敗:", e);
       return "";
@@ -510,7 +516,15 @@ export default function App() {
     const sharedReport = params.get("shared_report");
     if (sharedReport) {
       try {
-        const binary = atob(sharedReport);
+        // Convert spaces to + (in case URL parsing or messaging apps replaced them)
+        let normalized = sharedReport.replace(/ /g, "+");
+        // Convert URL-safe base64 back to normal base64
+        normalized = normalized.replace(/-/g, "+").replace(/_/g, "/");
+        // Re-add padding
+        while (normalized.length % 4) {
+          normalized += "=";
+        }
+        const binary = atob(normalized);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i);
@@ -1214,7 +1228,7 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
                     <div className="absolute inset-[-6px] border border-double border-[#590612]/10 rounded-full animate-[spin_40s_linear_infinite_reverse]" />
                     <div className="absolute inset-0 bg-[#bfa15f]/5 rounded-full blur-xl opacity-40 animate-pulse" />
                     <img 
-                      src="/src/assets/images/fengshui_luopan_1783843400904.jpg" 
+                      src={luopanImg} 
                       alt="中聯專屬風水大羅盤" 
                       referrerPolicy="no-referrer"
                       className="w-36 h-36 object-cover rounded-full mx-auto border-2 border-[#bfa15f] p-1 bg-[#fbfaf7] animate-slow-spin shadow-xl"
@@ -3577,7 +3591,7 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
 
           {/* Central Logo with Bagua Spinning Border */}
           <div className="relative w-28 h-28 mx-auto flex items-center justify-center bg-gradient-to-br from-[#800c1e] to-[#40040c] rounded-full border-4 border-[#bfa15f] shadow-[0_0_30px_rgba(254,221,0,0.4)]">
-            <BrandLogo className="h-16 w-16 drop-shadow-[0_0_8px_rgba(254,221,0,0.6)]" />
+            <BrandLogo iconOnly className="h-16 w-16 drop-shadow-[0_0_8px_rgba(254,221,0,0.6)]" />
             <div className="absolute inset-[-6px] border-2 border-dashed border-[#bfa15f]/70 rounded-full animate-[spin_25s_linear_infinite]" />
             <div className="absolute inset-[-12px] border border-double border-[#fedd00]/30 rounded-full animate-[spin_40s_linear_infinite_reverse]" />
           </div>
@@ -3938,9 +3952,9 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
                   <div className="flex justify-center">
                     <div className="bg-white p-2 rounded-xl border-2 border-[#bfa15f] h-16 w-16 flex items-center justify-center shadow-md">
                       <img
-                        src="/src/assets/images/centerland_fengshui_logo_1783844263098.jpg"
+                        src={centerlandHeartIcon}
                         alt="Logo"
-                        className="h-full aspect-square object-cover"
+                        className="h-full aspect-square object-contain"
                       />
                     </div>
                   </div>
@@ -4507,9 +4521,9 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
                         <div className="flex justify-center">
                           <div className="bg-white/95 p-1 rounded-lg border border-[#bfa15f]/80 h-10 w-10 flex items-center justify-center">
                             <img
-                              src="/src/assets/images/centerland_fengshui_logo_1783844263098.jpg"
+                              src={centerlandHeartIcon}
                               alt="Brand Logo"
-                              className="h-full aspect-square object-cover"
+                              className="h-full aspect-square object-contain"
                             />
                           </div>
                         </div>
@@ -4663,6 +4677,9 @@ ${result.tips.map((tip, idx) => `${idx + 1}. ${tip}`).join("\n")}
     onClose={() => setPaymentError(null)}
     userName={form.name}
   />
+
+  {/* 全域導向：林師傅親算與避凶趨吉引導 */}
+  <MasterLamGuideButton onTriggerBlessing={triggerBlessing} />
 </div>
   );
 }
